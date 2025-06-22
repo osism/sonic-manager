@@ -1,0 +1,34 @@
+---
+# - secret:
+#     name: SECRET_SONIC_MANAGER
+#     data:
+#       PYPI_API_TOKEN: !encrypted/pkcs1-oaep
+
+# - job:
+#     name: sonic-manager-publish-pypi-package
+#     parent: publish-pypi-package
+#     secrets:
+#       - name: secret
+#         secret: SECRET_SONIC_MANAGER
+#         pass-to-parent: true
+#     vars:
+#       pypi_twine_executable: "/tmp/venv/bin/python -m twine"
+
+- project:
+    merge-mode: squash-merge
+    default-branch: main
+    check:
+      jobs:
+        - flake8
+        - mypy
+        - python-black
+        - yamllint
+    periodic-daily:
+      jobs:
+        - flake8
+        - mypy
+        - python-black
+        - yamllint
+#     tag:
+#       jobs:
+#         - sonic-manager-publish-pypi-package
