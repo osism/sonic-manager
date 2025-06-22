@@ -1,5 +1,9 @@
-dynaconf==3.2.11
-loguru==0.7.3
-pynetbox==7.5.0
-setuptools==80.9.0
-typer==0.16.0
+click>=8.0.0
+deepdiff>=6.0.0
+hiredis>=2.0.0
+Jinja2>=3.0.0
+loguru>=0.7.0
+pynetbox>=7.0.0
+PyYAML>=6.0.0
+redis>=4.0.0
+urllib3>=1.26.0
