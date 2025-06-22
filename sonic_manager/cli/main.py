@@ -5,14 +5,15 @@
 import click
 import sys
 from loguru import logger
+from typing import Optional
 
-from ..sonic.sync import sync_sonic
+from ..sonic.sync import run
 from ..core.config import config
 
 
 @click.group()
 @click.option("--debug", is_flag=True, help="Enable debug logging")
-def cli(debug):
+def cli(debug: bool) -> None:
     """SONiC Manager - Standalone SONiC configuration management."""
     if debug:
         logger.remove()
@@ -25,11 +26,11 @@ def cli(debug):
 @cli.command()
 @click.option("--device", help="Name of specific device to sync")
 @click.option("--no-diff", is_flag=True, help="Disable diff output")
-def sync(device, no_diff):
+def sync(device: Optional[str], no_diff: bool) -> None:
     """Sync SONiC configurations for eligible devices."""
     try:
         show_diff = not no_diff
-        result = sync_sonic(device_name=device, show_diff=show_diff)
+        result = run(device_name=device, show_diff=show_diff)
 
         if result:
             click.echo(f"Successfully synced {len(result)} device(s)")
@@ -47,7 +48,7 @@ def sync(device, no_diff):
 @cli.command()
 @click.option("--output-dir", help="Output directory for config files")
 @click.option("--device", help="Name of specific device to export")
-def export(output_dir, device):
+def export(output_dir: Optional[str], device: Optional[str]) -> None:
     """Export SONiC configurations to files."""
     try:
         if output_dir:
@@ -55,7 +56,7 @@ def export(output_dir, device):
             original_dir = config.SONIC_EXPORT_DIR
             config.SONIC_EXPORT_DIR = output_dir
 
-        result = sync_sonic(device_name=device, show_diff=False)
+        result = run(device_name=device, show_diff=False)
 
         if output_dir:
             # Restore original directory
@@ -74,19 +75,18 @@ def export(output_dir, device):
 
 
 @cli.command()
-def config_info():
+def config_info() -> None:
     """Show current configuration."""
     click.echo("SONiC Manager Configuration:")
     click.echo(f"  NetBox URL: {config.NETBOX_URL}")
     click.echo(f"  NetBox Token: {'***' if config.NETBOX_TOKEN else 'Not set'}")
-    click.echo(f"  Redis Host: {config.REDIS_HOST}:{config.REDIS_PORT}")
     click.echo(f"  Export Directory: {config.SONIC_EXPORT_DIR}")
     click.echo(f"  Export Prefix: {config.SONIC_EXPORT_PREFIX}")
     click.echo(f"  Export Suffix: {config.SONIC_EXPORT_SUFFIX}")
     click.echo(f"  Export Identifier: {config.SONIC_EXPORT_IDENTIFIER}")
 
 
-def main():
+def main() -> None:
     """Entry point for the CLI."""
     cli()
 

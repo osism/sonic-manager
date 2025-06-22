@@ -3,11 +3,12 @@
 """Device-related helper functions for SONiC configuration."""
 
 from loguru import logger
+from typing import Any
 
-from ..core.utils import utils
+from ..core.netbox_client import netbox_client
 
 
-def get_device_platform(device, hwsku):
+def get_device_platform(device: Any, hwsku: str) -> str:
     """Get platform for device from sonic_parameters or generate from HWSKU.
 
     Args:
@@ -34,7 +35,7 @@ def get_device_platform(device, hwsku):
     return platform
 
 
-def get_device_hostname(device):
+def get_device_hostname(device: Any) -> str:
     """Get hostname for device from inventory_hostname custom field or device name.
 
     Args:
@@ -54,7 +55,7 @@ def get_device_hostname(device):
     return hostname
 
 
-def get_device_mac_address(device):
+def get_device_mac_address(device: Any) -> str:
     """Get MAC address from device's management interface.
 
     Args:
@@ -66,7 +67,7 @@ def get_device_mac_address(device):
     mac_address = "00:00:00:00:00:00"  # Default MAC
     try:
         # Get all interfaces for the device
-        interfaces = utils.nb.dcim.interfaces.filter(device_id=device.id)
+        interfaces = netbox_client.nb.dcim.interfaces.filter(device_id=device.id)
         for interface in interfaces:
             # Check if interface is marked as management only
             if interface.mgmt_only:

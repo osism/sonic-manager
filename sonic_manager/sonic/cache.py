@@ -3,20 +3,20 @@
 """Interface caching for SONiC configuration generation."""
 
 import threading
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from loguru import logger
 
-from ..core.utils import utils
+from ..core.netbox_client import netbox_client
 
 
 class InterfaceCache:
     """Thread-local cache for device interfaces during sync_sonic task."""
 
-    def __init__(self):
-        self._cache: Dict[int, List] = {}
+    def __init__(self) -> None:
+        self._cache: Dict[int, List[Any]] = {}
         self._lock = threading.Lock()
 
-    def get_device_interfaces(self, device_id: int) -> List:
+    def get_device_interfaces(self, device_id: int) -> List[Any]:
         """Get interfaces for a device, using cache if available.
 
         Args:
@@ -30,7 +30,7 @@ class InterfaceCache:
                 logger.debug(f"Fetching interfaces for device {device_id}")
                 try:
                     interfaces = list(
-                        utils.nb.dcim.interfaces.filter(device_id=device_id)
+                        netbox_client.nb.dcim.interfaces.filter(device_id=device_id)
                     )
                     self._cache[device_id] = interfaces
                     logger.debug(
@@ -46,7 +46,7 @@ class InterfaceCache:
 
             return self._cache[device_id]
 
-    def clear(self):
+    def clear(self) -> None:
         """Clear the cache."""
         with self._lock:
             cache_size = len(self._cache)
@@ -84,7 +84,7 @@ def get_interface_cache() -> InterfaceCache:
     return _thread_local.interface_cache
 
 
-def get_cached_device_interfaces(device_id: int) -> List:
+def get_cached_device_interfaces(device_id: int) -> List[Any]:
     """Get interfaces for a device using the thread-local cache.
 
     Args:
@@ -97,7 +97,7 @@ def get_cached_device_interfaces(device_id: int) -> List:
     return cache.get_device_interfaces(device_id)
 
 
-def clear_interface_cache():
+def clear_interface_cache() -> None:
     """Clear the current thread's interface cache."""
     if hasattr(_thread_local, "interface_cache"):
         _thread_local.interface_cache.clear()
@@ -110,5 +110,6 @@ def get_interface_cache_stats() -> Optional[Dict[str, int]]:
         Dictionary with cache statistics or None if no cache exists
     """
     if hasattr(_thread_local, "interface_cache"):
-        return _thread_local.interface_cache.get_cache_stats()
+        stats = _thread_local.interface_cache.get_cache_stats()
+        return stats
     return None

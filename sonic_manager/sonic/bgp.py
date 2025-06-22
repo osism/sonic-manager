@@ -3,6 +3,7 @@
 """BGP and AS calculation functions for SONiC configuration."""
 
 from loguru import logger
+from typing import Any, List, Optional
 
 from .constants import DEFAULT_LOCAL_AS_PREFIX
 
@@ -46,7 +47,9 @@ def calculate_local_asn_from_ipv4(
 
 # Deprecated: Use connections.find_interconnected_devices instead
 # This function is kept for backward compatibility but delegates to the new module
-def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine"]):
+def find_interconnected_spine_groups(
+    devices: List[Any], target_roles: List[str] = ["spine", "superspine"]
+) -> List[List[Any]]:
     """Find groups of interconnected spine/superspine switches.
 
     Args:
@@ -62,7 +65,9 @@ def find_interconnected_spine_groups(devices, target_roles=["spine", "superspine
     return find_interconnected_devices(devices, target_roles)
 
 
-def calculate_minimum_as_for_group(device_group, prefix=DEFAULT_LOCAL_AS_PREFIX):
+def calculate_minimum_as_for_group(
+    device_group: List[Any], prefix: int = DEFAULT_LOCAL_AS_PREFIX
+) -> Optional[int]:
     """Calculate the minimum AS number for a group of interconnected devices.
 
     Args:
