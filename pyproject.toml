@@ -1,54 +1,83 @@
 [build-system]
-requires = ["setuptools>=61.0.0", "wheel", "setuptools-git-versioning"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sonic-manager"
-description = "SONiC manager"
-authors = [
-  { name = "OSISM community", email = "info@osism.tech" },
-]
-license = { file = "LICENSE" }
+version = "0.1.0"
+description = "Standalone SONiC configuration management package"
 readme = "README.md"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "OSISM GmbH", email = "info@osism.tech"},
+]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Environment :: Console",
-    "Intended Audience :: Information Technology",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: System Administrators",
     "License :: OSI Approved :: Apache Software License",
     "Operating System :: OS Independent",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3 :: Only",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13"
+    "Topic :: System :: Networking",
+    "Topic :: System :: Systems Administration",
 ]
+keywords = ["sonic", "netbox", "network", "configuration", "management"]
 requires-python = ">=3.8"
-dynamic = ["dependencies", "version"]
+dependencies = [
+    "click>=8.0.0",
+    "deepdiff>=6.0.0",
+    "hiredis>=2.0.0",
+    "Jinja2>=3.0.0",
+    "loguru>=0.7.0",
+    "pynetbox>=7.0.0",
+    "PyYAML>=6.0.0",
+    "redis>=4.0.0",
+    "urllib3>=1.26.0",
+]
 
-[tool.mypy]
-exclude = ["doc"]
-
-[tool.setuptools]
-packages = ["sonic_manager"]
-
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-
-[tool.setuptools-git-versioning]
-enabled = true
-dev_template = "{tag}"
-dirty_template = "{tag}"
-
-[tool.setuptools.package-data]
-sonic_manager = ["settings.toml.sample"]
-
-[project.scripts]
-sonic-manager = "sonic_manager.main:main"
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "black>=22.0.0",
+    "isort>=5.0.0",
+    "flake8>=5.0.0",
+    "mypy>=1.0.0",
+]
 
 [project.urls]
-"Homepage" = "https://github.com/osism/sonic-manager"
-"Bug Tracker" = "https://github.com/osism/sonic-manager/issues"
+Homepage = "https://github.com/osism/sonic-manager"
+Repository = "https://github.com/osism/sonic-manager"
+Documentation = "https://docs.osism.tech/"
+Changelog = "https://github.com/osism/sonic-manager/blob/main/CHANGELOG.md"
+
+[project.scripts]
+sonic-manager = "sonic_manager.cli.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sonic_manager*"]
+
+[tool.black]
+line-length = 88
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
