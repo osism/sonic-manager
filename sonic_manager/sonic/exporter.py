@@ -6,14 +6,17 @@ import json
 import os
 import difflib
 from loguru import logger
+from typing import Any, Dict
 from deepdiff import DeepDiff
 
-from ..core.utils import utils
+from ..core.netbox_client import netbox_client
 from ..core.config import config
 from .device import get_device_hostname
 
 
-def save_config_to_netbox(device, sonic_config, return_diff=False):
+def save_config_to_netbox(
+    device: Any, sonic_config: Dict[str, Any], return_diff: bool = False
+) -> Any:
     """Save SONiC configuration to NetBox device local context with diff checking.
 
     Checks for existing local context and only saves if configuration has changed.
@@ -69,7 +72,7 @@ def save_config_to_netbox(device, sonic_config, return_diff=False):
 
                 # Save diff to device journal log
                 try:
-                    journal_entry = utils.nb.extras.journal_entries.create(
+                    journal_entry = netbox_client.nb.extras.journal_entries.create(
                         assigned_object_type="dcim.device",
                         assigned_object_id=device.id,
                         kind="info",
@@ -104,7 +107,7 @@ def save_config_to_netbox(device, sonic_config, return_diff=False):
         return (False, None) if return_diff else False
 
 
-def export_config_to_file(device, sonic_config):
+def export_config_to_file(device: Any, sonic_config: Dict[str, Any]) -> bool:
     """Export SONiC configuration to local file with diff checking.
 
     Only writes to file if configuration has changed compared to existing file.

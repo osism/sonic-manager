@@ -30,12 +30,11 @@ requires-python = ">=3.8"
 dependencies = [
     "click>=8.0.0",
     "deepdiff>=6.0.0",
-    "hiredis>=2.0.0",
+    "dynaconf>=3.1.0",
     "Jinja2>=3.0.0",
     "loguru>=0.7.0",
     "pynetbox>=7.0.0",
     "PyYAML>=6.0.0",
-    "redis>=4.0.0",
     "urllib3>=1.26.0",
 ]
 
@@ -61,6 +60,9 @@ sonic-manager = "sonic_manager.cli.main:main"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["sonic_manager*"]
+
+[tool.setuptools.package-data]
+sonic_manager = ["port_config/*.ini", "config_db.json", "settings.toml"]
 
 [tool.black]
 line-length = 88

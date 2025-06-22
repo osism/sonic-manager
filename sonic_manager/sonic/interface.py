@@ -3,18 +3,19 @@
 """Interface conversion and port detection functions for SONiC configuration."""
 
 import copy
-import os
 import re
 from loguru import logger
+from typing import Dict, List, Any, Optional
 
-from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS, PORT_CONFIG_PATH
+from .constants import PORT_TYPE_TO_SPEED_MAP, HIGH_SPEED_PORTS
+from ..port_config import get_port_config_path
 from .cache import get_cached_device_interfaces
 
 # Global cache for port configurations to avoid repeated file reads
-_port_config_cache: dict[str, dict[str, dict[str, str]]] = {}
+_port_config_cache: Dict[str, Dict[str, Any]] = {}
 
 
-def get_speed_from_port_type(port_type):
+def get_speed_from_port_type(port_type: Any) -> int:
     """Get speed from port type when speed is not provided.
 
     Args:
@@ -40,7 +41,9 @@ def get_speed_from_port_type(port_type):
     return speed
 
 
-def convert_netbox_interface_to_sonic(device_interface, device=None):
+def convert_netbox_interface_to_sonic(
+    device_interface: Any, device: Optional[Any] = None
+) -> Optional[str]:
     """Convert NetBox interface name to SONiC interface name with device-specific mapping.
 
     Args:
@@ -111,8 +114,11 @@ def convert_netbox_interface_to_sonic(device_interface, device=None):
 
 
 def _map_interface_name_to_sonic(
-    interface_name, all_interface_names, port_config, device_hwsku
-):
+    interface_name: str,
+    all_interface_names: List[str],
+    port_config: Dict[str, Any],
+    device_hwsku: str,
+) -> Optional[str]:
     """Map interface name to SONiC format based on port config and breakout detection.
 
     Args:
@@ -149,8 +155,11 @@ def _map_interface_name_to_sonic(
 
 
 def _handle_breakout_interface(
-    interface_name, all_interface_names, port_config, device_hwsku
-):
+    interface_name: str,
+    all_interface_names: List[str],
+    port_config: Dict[str, Any],
+    device_hwsku: str,
+) -> Optional[str]:
     """Handle EthX/Y/Z format interfaces with breakout detection.
 
     Args:
@@ -216,7 +225,9 @@ def _handle_breakout_interface(
     return _find_sonic_name_by_alias_mapping(interface_name, port_config)
 
 
-def _handle_standard_interface(interface_name, port_config, device_hwsku):
+def _handle_standard_interface(
+    interface_name: str, port_config: Dict[str, Any], device_hwsku: str
+) -> Optional[str]:
     """Handle EthX/Y format interfaces.
 
     Args:
@@ -230,7 +241,9 @@ def _handle_standard_interface(interface_name, port_config, device_hwsku):
     return _find_sonic_name_by_alias_mapping(interface_name, port_config)
 
 
-def _find_sonic_name_by_alias_mapping(interface_name, port_config):
+def _find_sonic_name_by_alias_mapping(
+    interface_name: str, port_config: Dict[str, Any]
+) -> Optional[str]:
     """Find SONiC interface name by mapping through alias in port config.
 
     The mapping works as follows:
@@ -275,8 +288,10 @@ def _find_sonic_name_by_alias_mapping(interface_name, port_config):
 
 
 def convert_sonic_interface_to_alias(
-    sonic_interface_name, interface_speed=None, is_breakout=False
-):
+    sonic_interface_name: str,
+    interface_speed: Optional[int] = None,
+    is_breakout: bool = False,
+) -> str:
     """Convert SONiC interface name to NetBox-style alias.
 
     Args:
@@ -334,7 +349,7 @@ def convert_sonic_interface_to_alias(
         return f"Eth{module}/{physical_port}"
 
 
-def get_port_config(hwsku):
+def get_port_config(hwsku: str) -> Dict[str, Any]:
     """Get port configuration for a given HWSKU. Uses caching to avoid repeated file reads.
 
     Args:
@@ -353,10 +368,10 @@ def get_port_config(hwsku):
         return copy.deepcopy(_port_config_cache[hwsku])
 
     port_config = {}
-    config_path = f"{PORT_CONFIG_PATH}/{hwsku}.ini"
+    config_path = get_port_config_path(hwsku)
 
-    if not os.path.exists(config_path):
-        logger.error(f"Port config file not found: {config_path}")
+    if not config_path:
+        logger.error(f"Port config file not found for HWSKU: {hwsku}")
         # Cache empty config to avoid repeated file system checks
         _port_config_cache[hwsku] = port_config
         return port_config
@@ -397,7 +412,7 @@ def get_port_config(hwsku):
     return copy.deepcopy(port_config)
 
 
-def clear_port_config_cache():
+def clear_port_config_cache() -> None:
     """Clear the port configuration cache. Should be called at the start of sync_sonic."""
     global _port_config_cache
     _port_config_cache = {}
@@ -406,7 +421,9 @@ def clear_port_config_cache():
 
 # Deprecated: Use connections.get_connected_interfaces instead
 # This function is kept for backward compatibility but delegates to the new module
-def get_connected_interfaces(device, portchannel_info=None):
+def get_connected_interfaces(
+    device: Any, portchannel_info: Optional[Any] = None
+) -> List[Dict[str, Any]]:
     """Get list of interface names that are connected to other devices.
 
     Args:
@@ -422,7 +439,7 @@ def get_connected_interfaces(device, portchannel_info=None):
     return _get_connected_interfaces(device, portchannel_info)
 
 
-def detect_breakout_ports(device):
+def detect_breakout_ports(device: Any) -> List[Dict[str, Any]]:
     """Detect breakout ports from NetBox device interfaces using the centralized breakout logic.
 
     Args:
@@ -657,7 +674,7 @@ def detect_breakout_ports(device):
     return {"breakout_cfgs": breakout_cfgs, "breakout_ports": breakout_ports}
 
 
-def detect_port_channels(device):
+def detect_port_channels(device: Any) -> Dict[str, Any]:
     """Detect port channels (LAGs) from NetBox device interfaces.
 
     Args:

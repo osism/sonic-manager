@@ -5,16 +5,11 @@
 import copy
 import ipaddress
 import json
-import os
 import re
 from loguru import logger
+from typing import Any, Dict, List, Optional, Union
 
-from ..core.utils import utils
-from ..core.netbox_compatibility import (
-    get_device_loopbacks,
-    get_device_oob_ip,
-    get_device_vlans,
-)
+from ..core.netbox_client import netbox_client
 from .bgp import calculate_local_asn_from_ipv4
 from .device import get_device_platform, get_device_hostname, get_device_mac_address
 from .interface import (
@@ -37,13 +32,15 @@ from .cache import get_cached_device_interfaces
 _ntp_servers_cache = None
 
 
-def natural_sort_key(port_name):
+def natural_sort_key(port_name: str) -> List[Union[int, str]]:
     """Extract numeric part from port name for natural sorting."""
     match = re.search(r"(\d+)", port_name)
     return int(match.group(1)) if match else 0
 
 
-def generate_sonic_config(device, hwsku, device_as_mapping=None):
+def generate_sonic_config(
+    device: Any, hwsku: str, device_as_mapping: Optional[Dict[int, int]] = None
+) -> Dict[str, Any]:
     """Generate minimal SONiC config.json for a device.
 
     Args:
@@ -66,13 +63,13 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     )
 
     # Get OOB IP for management interface
-    oob_ip_result = get_device_oob_ip(device)
+    oob_ip_result = netbox_client.get_device_oob_ip(device)
 
     # Get VLAN configuration from NetBox
-    vlan_info = get_device_vlans(device)
+    vlan_info = netbox_client.get_device_vlans(device)
 
     # Get Loopback configuration from NetBox
-    loopback_info = get_device_loopbacks(device)
+    loopback_info = netbox_client.get_device_loopbacks(device)
 
     # Get breakout port configuration from NetBox
     breakout_info = detect_breakout_ports(device)
@@ -105,13 +102,16 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
     hostname = get_device_hostname(device)
     mac_address = get_device_mac_address(device)
 
-    # Try to load base configuration from /etc/sonic/config_db.json
+    # Try to load base configuration from package directory
     # Always start with a fresh, empty configuration for each device
-    base_config_path = "/etc/sonic/config_db.json"
+    from pathlib import Path
+
+    package_dir = Path(__file__).parent.parent
+    base_config_path = package_dir / "config_db.json"
     config = {}
 
     try:
-        if os.path.exists(base_config_path):
+        if base_config_path.exists():
             with open(base_config_path, "r") as f:
                 base_config = json.load(f)
                 # Create a deep copy to ensure no cross-device contamination
@@ -227,15 +227,15 @@ def generate_sonic_config(device, hwsku, device_as_mapping=None):
 
 
 def _add_port_configurations(
-    config,
-    port_config,
-    connected_interfaces,
-    portchannel_info,
-    breakout_info,
-    netbox_interfaces,
-    vlan_info,
-    device,
-):
+    config: Dict[str, Any],
+    port_config: Dict[str, Any],
+    connected_interfaces: List[Dict[str, Any]],
+    portchannel_info: Dict[str, Any],
+    breakout_info: List[Dict[str, Any]],
+    netbox_interfaces: List[Any],
+    vlan_info: Dict[str, Any],
+    device: Any,
+) -> None:
     """Add port configurations to config."""
     # Sort ports naturally (Ethernet0, Ethernet4, Ethernet8, ...)
     sorted_ports = sorted(port_config.keys(), key=natural_sort_key)
@@ -355,7 +355,7 @@ def _add_port_configurations(
     _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device)
 
 
-def _get_breakout_port_valid_speeds(port_speed):
+def _get_breakout_port_valid_speeds(port_speed: int) -> List[int]:
     """Get valid speeds for a breakout port based on its configured speed."""
     if not port_speed:
         return None
@@ -375,7 +375,9 @@ def _get_breakout_port_valid_speeds(port_speed):
         return f"{port_speed},10000,1000"
 
 
-def _calculate_breakout_port_lane(port_name, master_port, port_config):
+def _calculate_breakout_port_lane(
+    port_name: str, master_port: str, port_config: Dict[str, Any]
+) -> str:
     """Calculate individual lane for a breakout port."""
     # Get master port's lanes from port_config
     if master_port in port_config:
@@ -409,13 +411,13 @@ def _calculate_breakout_port_lane(port_name, master_port, port_config):
 
 
 def _add_missing_breakout_ports(
-    config,
-    breakout_info,
-    port_config,
-    connected_interfaces,
-    portchannel_info,
-    netbox_interfaces,
-):
+    config: Dict[str, Any],
+    breakout_info: Dict[str, Any],
+    port_config: Dict[str, Any],
+    connected_interfaces: List[Dict[str, Any]],
+    portchannel_info: Dict[str, Any],
+    netbox_interfaces: List[Any],
+) -> None:
     """Add all breakout ports to config (master ports are skipped in main loop)."""
     for port_name in breakout_info["breakout_ports"]:
         if port_name not in config["PORT"]:
@@ -498,7 +500,12 @@ def _add_missing_breakout_ports(
             config["PORT"][port_name] = port_data
 
 
-def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device):
+def _add_tagged_vlans_to_ports(
+    config: Dict[str, Any],
+    vlan_info: Dict[str, Any],
+    netbox_interfaces: List[Any],
+    device: Any,
+) -> None:
     """Add tagged VLANs to PORT configuration."""
     # Build a mapping of ports to their tagged VLANs
     port_tagged_vlans = {}
@@ -529,7 +536,11 @@ def _add_tagged_vlans_to_ports(config, vlan_info, netbox_interfaces, device):
             config["PORT"][port_name]["tagged_vlans"] = tagged_vlans
 
 
-def _add_interface_configurations(config, connected_interfaces, portchannel_info):
+def _add_interface_configurations(
+    config: Dict[str, Any],
+    connected_interfaces: List[Dict[str, Any]],
+    portchannel_info: Dict[str, Any],
+) -> None:
     """Add INTERFACE configuration for connected interfaces."""
     for port_name in config["PORT"]:
         # Check if this port is in the connected interfaces set and not a port channel member
@@ -542,13 +553,13 @@ def _add_interface_configurations(config, connected_interfaces, portchannel_info
 
 
 def _add_bgp_configurations(
-    config,
-    connected_interfaces,
-    connected_portchannels,
-    portchannel_info,
-    device,
-    device_as_mapping=None,
-):
+    config: Dict[str, Any],
+    connected_interfaces: List[str],
+    connected_portchannels: List[str],
+    portchannel_info: Dict[str, Any],
+    device: Any,
+    device_as_mapping: Optional[Dict[int, int]] = None,
+) -> None:
     """Add BGP configurations."""
     # Add BGP_NEIGHBOR_AF configuration for connected interfaces
     for port_name in config["PORT"]:
@@ -614,7 +625,9 @@ def _add_bgp_configurations(
     )
 
 
-def _get_connected_device_for_interface(device, interface_name):
+def _get_connected_device_for_interface(
+    device: Any, interface_name: str
+) -> Optional[Any]:
     """Get the connected device for a given interface name.
 
     Args:
@@ -627,7 +640,11 @@ def _get_connected_device_for_interface(device, interface_name):
     return get_connected_device_for_sonic_interface(device, interface_name)
 
 
-def _determine_peer_type(local_device, connected_device, device_as_mapping=None):
+def _determine_peer_type(
+    local_device: Any,
+    connected_device: Any,
+    device_as_mapping: Optional[Dict[int, int]] = None,
+) -> str:
     """Determine BGP peer type (internal/external) based on AS number comparison.
 
     Args:
@@ -665,7 +682,7 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
 
                 # Get all devices to find the group
                 all_devices = list(
-                    utils.nb.dcim.devices.filter(role=["spine", "superspine"])
+                    netbox_client.nb.dcim.devices.filter(role=["spine", "superspine"])
                 )
                 spine_groups = find_interconnected_devices(
                     all_devices, ["spine", "superspine"]
@@ -701,8 +718,12 @@ def _determine_peer_type(local_device, connected_device, device_as_mapping=None)
 
 
 def _add_loopback_bgp_neighbors(
-    config, device, portchannel_info, connected_interfaces, device_as_mapping=None
-):
+    config: Dict[str, Any],
+    device: Any,
+    portchannel_info: Dict[str, Any],
+    connected_interfaces: List[Dict[str, Any]],
+    device_as_mapping: Optional[Dict[int, int]] = None,
+) -> None:
     """Add BGP_NEIGHBOR configuration using Loopback0 IP addresses from connected devices."""
     try:
         # Get BGP neighbors via loopback using the new connections module
@@ -726,7 +747,7 @@ def _add_loopback_bgp_neighbors(
         logger.warning(f"Could not process BGP neighbors for device {device.name}: {e}")
 
 
-def _get_ntp_servers():
+def _get_ntp_servers() -> Dict[str, str]:
     """Get NTP servers from manager/metalbox devices. Uses caching to avoid repeated queries."""
     global _ntp_servers_cache
 
@@ -737,8 +758,8 @@ def _get_ntp_servers():
     ntp_servers = {}
     try:
         # Get devices with manager or metalbox device roles
-        devices_manager = utils.nb.dcim.devices.filter(role="manager")
-        devices_metalbox = utils.nb.dcim.devices.filter(role="metalbox")
+        devices_manager = netbox_client.nb.dcim.devices.filter(role="manager")
+        devices_metalbox = netbox_client.nb.dcim.devices.filter(role="metalbox")
 
         # Combine both device lists
         ntp_devices = list(devices_manager) + list(devices_metalbox)
@@ -746,13 +767,15 @@ def _get_ntp_servers():
 
         for ntp_device in ntp_devices:
             # Get interfaces for this device to find Loopback0
-            device_interfaces = utils.nb.dcim.interfaces.filter(device_id=ntp_device.id)
+            device_interfaces = netbox_client.nb.dcim.interfaces.filter(
+                device_id=ntp_device.id
+            )
 
             for interface in device_interfaces:
                 # Look for Loopback0 interface
                 if interface.name == "Loopback0":
                     # Get IP addresses assigned to this Loopback0 interface
-                    ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                    ip_addresses = netbox_client.nb.ipam.ip_addresses.filter(
                         assigned_object_id=interface.id,
                     )
 
@@ -784,7 +807,7 @@ def _get_ntp_servers():
     return _ntp_servers_cache
 
 
-def _add_ntp_configuration(config, device):
+def _add_ntp_configuration(config: Dict[str, Any], device: Any) -> None:
     """Add NTP_SERVER configuration to device config."""
     try:
         ntp_servers = _get_ntp_servers()
@@ -804,21 +827,26 @@ def _add_ntp_configuration(config, device):
         logger.warning(f"Could not add NTP configuration to device {device.name}: {e}")
 
 
-def clear_ntp_cache():
+def clear_ntp_cache() -> None:
     """Clear the NTP servers cache. Should be called at the start of sync_sonic."""
     global _ntp_servers_cache
     _ntp_servers_cache = None
     logger.debug("Cleared NTP servers cache")
 
 
-def clear_all_caches():
+def clear_all_caches() -> None:
     """Clear all caches in config_generator module."""
     clear_ntp_cache()
     clear_port_config_cache()
     logger.debug("Cleared all config_generator caches")
 
 
-def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
+def _add_vlan_configuration(
+    config: Dict[str, Any],
+    vlan_info: Dict[str, Any],
+    netbox_interfaces: List[Any],
+    device: Any,
+) -> None:
     """Add VLAN configuration from NetBox."""
     # Add VLAN configuration
     for vid, vlan_data in vlan_info["vlans"].items():
@@ -878,7 +906,9 @@ def _add_vlan_configuration(config, vlan_info, netbox_interfaces, device):
                 config["VLAN_INTERFACE"][ip_key] = {}
 
 
-def _add_loopback_configuration(config, loopback_info):
+def _add_loopback_configuration(
+    config: Dict[str, Any], loopback_info: List[Any]
+) -> None:
     """Add Loopback configuration from NetBox."""
     for loopback_name, loopback_data in loopback_info["loopbacks"].items():
         # Add the Loopback interface
@@ -911,7 +941,9 @@ def _add_loopback_configuration(config, loopback_info):
                     continue
 
 
-def _add_portchannel_configuration(config, portchannel_info):
+def _add_portchannel_configuration(
+    config: Dict[str, Any], portchannel_info: Dict[str, Any]
+) -> None:
     """Add port channel configuration from NetBox."""
     if portchannel_info["portchannels"]:
         for pc_name, pc_data in portchannel_info["portchannels"].items():

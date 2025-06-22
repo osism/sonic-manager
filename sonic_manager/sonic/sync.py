@@ -3,9 +3,9 @@
 """Main SONiC synchronization function."""
 
 from loguru import logger
+from typing import Optional, Dict, Any
 
-from ..core.utils import utils
-from ..core.netbox_compatibility import get_nb_device_query_list_sonic
+from ..core.netbox_client import netbox_client
 from .bgp import calculate_minimum_as_for_group
 from .connections import find_interconnected_devices
 from .config_generator import generate_sonic_config, clear_all_caches
@@ -14,12 +14,11 @@ from .exporter import save_config_to_netbox, export_config_to_file
 from .cache import clear_interface_cache, get_interface_cache_stats
 
 
-def sync_sonic(device_name=None, task_id=None, show_diff=True):
+def run(device_name: Optional[str] = None, show_diff: bool = True) -> Dict[str, Any]:
     """Sync SONiC configurations for eligible devices.
 
     Args:
         device_name (str, optional): Name of specific device to sync. If None, sync all eligible devices.
-        task_id (str, optional): Task ID for output logging.
         show_diff (bool, optional): Whether to show diffs when changes are detected. Defaults to True.
 
     Returns:
@@ -45,7 +44,7 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
     if device_name:
         # When specific device is requested, fetch it directly
         try:
-            device = utils.nb.dcim.devices.get(name=device_name)
+            device = netbox_client.nb.dcim.devices.get(name=device_name)
             if device:
                 # Check if device role matches allowed roles
                 if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
@@ -67,11 +66,11 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
             return device_configs
     else:
         # Get device query list from NETBOX_FILTER_CONDUCTOR_SONIC
-        nb_device_query_list = get_nb_device_query_list_sonic()
+        nb_device_query_list = netbox_client.get_nb_device_query_list_sonic()
 
         for nb_device_query in nb_device_query_list:
             # Query devices with the NETBOX_FILTER_CONDUCTOR_SONIC criteria
-            for device in utils.nb.dcim.devices.filter(**nb_device_query):
+            for device in netbox_client.nb.dcim.devices.filter(**nb_device_query):
                 # Check if device role matches allowed roles
                 if device.role and device.role.slug in DEFAULT_SONIC_ROLES:
                     devices.append(device)
@@ -117,9 +116,8 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
 
         logger.debug(f"Processing device: {device.name} with HWSKU: {hwsku}")
 
-        # Output current device being processed if task_id is available
-        if task_id:
-            utils.push_task_output(task_id, f"Processing device: {device.name}\n")
+        # Log current device being processed
+        logger.info(f"Processing device: {device.name}")
 
         # Validate that HWSKU is supported
         if hwsku not in SUPPORTED_HWSKUS:
@@ -140,20 +138,15 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
                 device, sonic_config, return_diff=True
             )
 
-            # Output diff to task if available and there are changes
-            if task_id and netbox_changed and diff_output:
-                utils.push_task_output(task_id, f"\n{'='*60}\n")
-                utils.push_task_output(
-                    task_id, f"Configuration diff for {device.name}:\n"
-                )
-                utils.push_task_output(task_id, f"{'='*60}\n")
-                utils.push_task_output(task_id, f"{diff_output}\n")
-                utils.push_task_output(task_id, f"{'='*60}\n\n")
-            elif task_id and netbox_changed and not diff_output:
+            # Log diff output if there are changes
+            if netbox_changed and diff_output:
+                logger.info(f"Configuration diff for {device.name}:")
+                logger.info(f"{'='*60}")
+                logger.info(diff_output)
+                logger.info(f"{'='*60}")
+            elif netbox_changed and not diff_output:
                 # First-time configuration (no diff available)
-                utils.push_task_output(
-                    task_id, f"First-time configuration created for {device.name}\n"
-                )
+                logger.info(f"First-time configuration created for {device.name}")
         else:
             netbox_changed = save_config_to_netbox(device, sonic_config)
 
@@ -182,9 +175,8 @@ def sync_sonic(device_name=None, task_id=None, show_diff=True):
     clear_all_caches()
     logger.debug("Cleared all caches after sync_sonic task completion")
 
-    # Finish task output if task_id is available
-    if task_id:
-        utils.finish_task_output(task_id, rc=0)
+    # Log completion
+    logger.success("SONiC synchronization completed successfully")
 
     # Return the dictionary with all device configurations
     return device_configs

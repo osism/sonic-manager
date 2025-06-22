@@ -10,7 +10,7 @@ from loguru import logger
 from typing import Optional, Set, Tuple, List, Any, DefaultDict
 from collections import defaultdict
 
-from ..core.utils import utils
+from ..core.netbox_client import netbox_client
 from .interface import (
     convert_netbox_interface_to_sonic,
 )
@@ -357,7 +357,7 @@ def get_device_bgp_neighbors_via_loopback(
 
                         for loopback_iface in loopback_interfaces:
                             # Get IP addresses assigned to Loopback0
-                            ip_addresses = utils.nb.ipam.ip_addresses.filter(
+                            ip_addresses = netbox_client.nb.ipam.ip_addresses.filter(
                                 assigned_object_id=loopback_iface.id,
                             )
 

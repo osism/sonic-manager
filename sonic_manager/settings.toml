@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# SONiC Manager Configuration
+# This file contains all configuration parameters for the standalone SONiC Manager.
+# Values can be overridden by environment variables or command line arguments.
+
+[default]
+
+# NetBox Configuration
+[default.netbox]
+# NetBox API URL - can be set via NETBOX_API or NETBOX_URL environment variables
+url = ""
+# NetBox API token - can be set via NETBOX_TOKEN environment variable or /run/secrets/NETBOX_TOKEN file
+token = ""
+# Whether to ignore SSL certificate errors when connecting to NetBox
+ignore_ssl_errors = true
+# Device filter query for SONiC devices in NetBox
+filter_conductor_sonic = "[{'state': 'active', 'tag': ['managed-by-metalbox']}]"
+
+# SONiC Export Configuration
+[default.sonic]
+# Directory where SONiC configuration files are exported
+export_dir = "/etc/sonic/export"
+# Prefix for exported configuration filenames
+export_prefix = "osism_"
+# Suffix for exported configuration filenames
+export_suffix = ".json"
+# Device identifier used for export filenames (hostname, name, etc.)
+export_identifier = "hostname"
+
+# OSISM API Configuration
+[default.osism]
+# OSISM API URL (optional)
+api_url = ""
+
+# Development Configuration
+[development]
+# Override settings for development environment
+[development.sonic]
+export_dir = "./export"
+
+# Production Configuration
+[production]
+# Override settings for production environment
+[production.netbox]
+ignore_ssl_errors = false
